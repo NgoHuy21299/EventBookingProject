@@ -12,8 +12,7 @@
 - User Roles: Admin: Full system access. Event Manager: Event management access. Customer: Basic user access.
 
 ### 2.2 Event Management
-- Add Event: Allows administrators to add new event information, including event name, description, date and time, venue, number of tickets, ticket prices, and event images.
-- Create Ticket Types: Allows administrators to create different ticket types for an event, each with its own quantity and price.
+- Add Event: Allows administrators to add new event information, including event name, description, date and time, venue, number of tickets, ticket prices, and event images. Automatically generates 100 seats (10 rows labeled A-J, 10 seats per row labeled 1-10).
 - Edit Event: Allows administrators to edit existing event information.
 - Delete Event: Allows administrators to delete events from the system.
 - View Events: Allows administrators to view a list of all events.
@@ -21,7 +20,7 @@
 ### 2.3 Ticket Booking
 - View Events: Users can view a list of available events, including detailed information about each event.
 - Book Tickets: Users can select an event and book tickets. The system will require personal information and payment method.
-- Ticket Selection: Users can select ticket type and quantity (no seat selection required).
+- Ticket Selection: Users can select ticket type (VIP/Normal) and quantity (no seat selection required).
 
 ### 2.4 Booked Ticket Management
 - View Booked Tickets: Users can view information about booked tickets, including ticket code, event information, and payment status.
@@ -129,29 +128,24 @@
 | CreatedAt     | DATETIME      | NOT NULL, DEFAULT(GETDATE()) | Ngày tạo sự kiện                         |
 | UpdatedAt     | DATETIME      | NULL                      | Ngày cập nhật sự kiện                   |
 
-### 6.5 TicketTypes Table
+### 6.5 Seats Table
 | Column Name   | Data Type     | Constraint                | Description                              |
 |---------------|---------------|---------------------------|------------------------------------------|
-| TicketTypeId  | INT           | PK, NOT NULL, IDENTITY    | Khóa chính, tự tăng                     |
+| SeatId        | INT           | PK, NOT NULL, IDENTITY    | Khóa chính, tự tăng                     |
 | EventId       | INT           | FK, NOT NULL              | Khóa ngoại, tham chiếu Events(EventId)  |
-| Name          | NVARCHAR(50)  | NOT NULL                  | Tên hạng vé (VIP/Standard/Economy)       |
+| Row           | CHAR(1)       | NOT NULL                  | Hàng ghế (A-J)                          |
+| Number        | INT           | NOT NULL                  | Số ghế (1-10)                           |
+| Type          | NVARCHAR(50)  | NOT NULL                  | Loại ghế (VIP/Normal)                   |
 | Price         | DECIMAL(18, 2)| NOT NULL                  | Giá vé                                   |
-| TotalQuantity | INT           | NOT NULL                  | Tổng số lượng vé                         |
-| RemainingQuantity | INT       | NOT NULL                  | Số lượng vé còn lại                      |
-| Description   | NVARCHAR(255) | NULL                      | Mô tả hạng vé                            |
-| MaxPerCustomer| INT           | NOT NULL                  | Số lượng vé tối đa mỗi khách hàng        |
-| SaleStartDate | DATETIME      | NOT NULL                  | Ngày bắt đầu bán vé                      |
-| SaleEndDate   | DATETIME      | NOT NULL                  | Ngày kết thúc bán vé                     |
-| CreatedAt     | DATETIME      | NOT NULL, DEFAULT(GETDATE()) | Ngày tạo hạng vé                         |
-| UpdatedAt     | DATETIME      | NULL                      | Ngày cập nhật hạng vé                   |
-| Status        | NVARCHAR(50)  | NOT NULL, DEFAULT('Active') | Trạng thái hạng vé (Active/Inactive)     |
+| Status        | NVARCHAR(50)  | NOT NULL, DEFAULT('Available') | Trạng thái ghế (Available/Reserved/Sold) |
+| CreatedAt     | DATETIME      | NOT NULL, DEFAULT(GETDATE()) | Ngày tạo ghế                             |
 
 ### 6.6 Tickets Table
 | Column Name   | Data Type     | Constraint                | Description                              |
 |---------------|---------------|---------------------------|------------------------------------------|
 | TicketId      | INT           | PK, NOT NULL, IDENTITY    | Khóa chính, tự tăng                     |
 | BookingId     | INT           | FK, NOT NULL              | Khóa ngoại, tham chiếu Bookings(BookingId)|
-| TicketTypeId  | INT           | FK, NOT NULL              | Khóa ngoại, tham chiếu TicketTypes(TicketTypeId)|
+| SeatId        | INT           | FK, NOT NULL              | Khóa ngoại, tham chiếu Seats(SeatId)    |
 | TicketNumber  | NVARCHAR(50)  | NOT NULL, UNIQUE          | Mã vé, duy nhất                          |
 | Status        | NVARCHAR(50)  | NOT NULL, DEFAULT('Reserved') | Trạng thái vé (Reserved/Confirmed/Cancelled) |
 | ReservedAt    | DATETIME      | NULL                      | Ngày giữ vé                              |
@@ -194,3 +188,150 @@
 | RefundDate    | DATETIME      | NULL                      | Ngày hoàn tiền                           |
 | CreatedAt     | DATETIME      | NOT NULL, DEFAULT(GETDATE()) | Ngày tạo thanh toán                      |
 | UpdatedAt     | DATETIME      | NULL                      | Ngày cập nhật thanh toán                |
+
+```
+USE master
+GO
+
+DROP DATABASE IF EXISTS EventTicketingSystem;
+
+-- Tạo cơ sở dữ liệu EventTicketingSystem
+CREATE DATABASE EventTicketingSystem;
+GO
+
+-- Sử dụng cơ sở dữ liệu EventTicketingSystem
+USE EventTicketingSystem;
+GO
+
+-- Tạo bảng Users
+CREATE TABLE Users (
+    UserId INT PRIMARY KEY IDENTITY,
+    Email NVARCHAR(255) NOT NULL UNIQUE,
+    PasswordHash NVARCHAR(MAX) NOT NULL,
+    FullName NVARCHAR(255) NOT NULL,
+    PhoneNumber NVARCHAR(20) NULL,
+    CreatedAt DATETIME NOT NULL DEFAULT(GETDATE()),
+    UpdatedAt DATETIME NULL,
+    LastLoginAt DATETIME NULL,
+    Status NVARCHAR(50) NOT NULL DEFAULT('Active')
+);
+GO
+
+-- Tạo bảng Roles
+CREATE TABLE Roles (
+    RoleId INT PRIMARY KEY IDENTITY,
+    Name NVARCHAR(50) NOT NULL UNIQUE,
+    Description NVARCHAR(255) NULL,
+    CreatedAt DATETIME NOT NULL DEFAULT(GETDATE()),
+    UpdatedAt DATETIME NULL
+);
+GO
+
+-- Tạo bảng UserRoles
+CREATE TABLE UserRoles (
+    UserRoleId INT PRIMARY KEY IDENTITY,
+    UserId INT NOT NULL,
+    RoleId INT NOT NULL,
+    AssignedAt DATETIME NOT NULL DEFAULT(GETDATE()),
+    AssignedBy INT NULL,
+    FOREIGN KEY (UserId) REFERENCES Users(UserId),
+    FOREIGN KEY (RoleId) REFERENCES Roles(RoleId)
+);
+GO
+
+-- Tạo bảng Events
+CREATE TABLE Events (
+    EventId INT PRIMARY KEY IDENTITY,
+    Name NVARCHAR(255) NOT NULL,
+    Description NVARCHAR(MAX) NULL,
+    StartDate DATETIME NOT NULL,
+    EndDate DATETIME NOT NULL,
+    VenueName NVARCHAR(255) NOT NULL,
+    VenueAddress NVARCHAR(255) NOT NULL,
+    Category NVARCHAR(50) NULL,
+    ArtistInfo NVARCHAR(255) NULL,
+    ImageUrls NVARCHAR(MAX) NULL,
+    TotalTickets INT NOT NULL,
+    RemainingTickets INT NOT NULL,
+    Status NVARCHAR(50) NOT NULL DEFAULT('Upcoming'),
+    CreatedBy INT NOT NULL,
+    CreatedAt DATETIME NOT NULL DEFAULT(GETDATE()),
+    UpdatedAt DATETIME NULL,
+    FOREIGN KEY (CreatedBy) REFERENCES Users(UserId)
+);
+GO
+
+-- Tạo bảng Bookings
+CREATE TABLE Bookings (
+    BookingId INT PRIMARY KEY IDENTITY,
+    UserId INT NOT NULL,
+    EventId INT NOT NULL,
+    TotalAmount DECIMAL(18, 2) NOT NULL,
+    Status NVARCHAR(50) NOT NULL DEFAULT('Pending'),
+    BookingDate DATETIME NOT NULL DEFAULT(GETDATE()),
+    ExpiryDate DATETIME NULL,
+    CreatedAt DATETIME NOT NULL DEFAULT(GETDATE()),
+    UpdatedAt DATETIME NULL,
+    FOREIGN KEY (UserId) REFERENCES Users(UserId),
+    FOREIGN KEY (EventId) REFERENCES Events(EventId)
+);
+GO
+
+-- Tạo bảng Seats
+CREATE TABLE Seats (
+    SeatId INT PRIMARY KEY IDENTITY,
+    EventId INT NOT NULL,
+    Row CHAR(1) NOT NULL,
+    Number INT NOT NULL,
+    Type NVARCHAR(50) NOT NULL,
+    Price DECIMAL(18, 2) NOT NULL,
+    Status NVARCHAR(50) NOT NULL DEFAULT('Available'),
+    CreatedAt DATETIME NOT NULL DEFAULT(GETDATE()),
+    FOREIGN KEY (EventId) REFERENCES Events(EventId)
+);
+GO
+
+-- Tạo bảng Tickets
+CREATE TABLE Tickets (
+    TicketId INT PRIMARY KEY IDENTITY,
+    BookingId INT NOT NULL,
+    SeatId INT NOT NULL,
+    TicketNumber NVARCHAR(50) NOT NULL UNIQUE,
+    Status NVARCHAR(50) NOT NULL DEFAULT('Reserved'),
+    ReservedAt DATETIME NULL,
+    ConfirmedAt DATETIME NULL,
+    CreatedAt DATETIME NOT NULL DEFAULT(GETDATE()),
+    FOREIGN KEY (BookingId) REFERENCES Bookings(BookingId),
+    FOREIGN KEY (SeatId) REFERENCES Seats(SeatId)
+);
+GO
+
+-- Tạo bảng BookingDetails
+CREATE TABLE BookingDetails (
+    BookingDetailId INT PRIMARY KEY IDENTITY,
+    BookingId INT NOT NULL,
+    SeatId INT NOT NULL,
+    Quantity INT NOT NULL,
+    UnitPrice DECIMAL(18, 2) NOT NULL,
+    Subtotal DECIMAL(18, 2) NOT NULL,
+    FOREIGN KEY (BookingId) REFERENCES Bookings(BookingId),
+    FOREIGN KEY (SeatId) REFERENCES Seats(SeatId)
+);
+GO
+
+-- Tạo bảng Payments
+CREATE TABLE Payments (
+    PaymentId INT PRIMARY KEY IDENTITY,
+    BookingId INT NOT NULL,
+    Amount DECIMAL(18, 2) NOT NULL,
+    PaymentMethod NVARCHAR(50) NOT NULL,
+    Status NVARCHAR(50) NOT NULL DEFAULT('Pending'),
+    TransactionId NVARCHAR(50) NULL,
+    PaymentDate DATETIME NULL,
+    RefundDate DATETIME NULL,
+    CreatedAt DATETIME NOT NULL DEFAULT(GETDATE()),
+    UpdatedAt DATETIME NULL,
+    FOREIGN KEY (BookingId) REFERENCES Bookings(BookingId)
+);
+GO
+```
